@@ -49,10 +49,10 @@ func genToken(id string, key interface{}) (string, error) {
 	return token.SignedString(key)
 }
 
-func getConf(token string, serviceID string) (map[string]string, error) {
+func getConf(token string, serviceID string, certusURL string) (map[string]string, error) {
 	buf := strings.NewReader(token)
 
-	resp, err := http.Post("https://ceterus.dev.hosaka.io/configs/"+serviceID, "text/plain", buf)
+	resp, err := http.Post(certusURL+serviceID, "text/plain", buf)
 	if err != nil {
 		return nil, err
 	}
@@ -84,7 +84,6 @@ func getCipher(privkeyData []byte) (cipher.Block, error) {
 	return aes.NewCipher(sha.Sum(nil))
 }
 
-// encrypt string to base64 crypto using AES
 func encrypt(block cipher.Block, text string) string {
 	plaintext := []byte(text)
 	// The IV needs to be unique, but not secure. Therefore it's common to
@@ -102,7 +101,6 @@ func encrypt(block cipher.Block, text string) string {
 	return base64.URLEncoding.EncodeToString(ciphertext)
 }
 
-// decrypt from base64 to decrypted string
 func decrypt(block cipher.Block, cryptoText string) (string, error) {
 	ciphertext, err := base64.URLEncoding.DecodeString(cryptoText)
 	if err != nil {
@@ -157,10 +155,11 @@ func main() {
 
 	serviceID := os.Getenv("SERVICE_ID")
 	keyPath := os.Getenv("SERVICE_KEY_PATH")
+	certusURL := os.Getenv("CETERUS_URL")
 	if len(keyPath) == 0 {
-		keyPath = "./resources/"
+		keyPath = "/run/secrets/"
 	}
-	//	privkeyData, err := ioutil.ReadFile("./resources/0a603dd2-e63e-403e-833b-0b01fe212a9d.pem")
+
 	privkeyData, err := ioutil.ReadFile(keyPath + serviceID + ".pem")
 	check(err)
 
@@ -172,9 +171,7 @@ func main() {
 	tokenString, err := genToken(serviceID, privkey)
 	check(err)
 
-	//	fmt.Println(tokenString, err)
-
-	conf, err := getConf(tokenString, serviceID)
+	conf, err := getConf(tokenString, serviceID, certusURL)
 	check(err)
 
 	conf = decryptSecrets(cipher, conf)
