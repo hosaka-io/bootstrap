@@ -77,13 +77,6 @@ func getConf(token string, serviceID string, certusURL string) (map[string]strin
 
 }
 
-func getCipher(privkeyData []byte) (cipher.Block, error) {
-	lines := strings.Split(string(privkeyData), "\n")
-	sha := sha256.New()
-	sha.Write([]byte(strings.Join(lines[1:len(lines)-2], "")))
-	return aes.NewCipher(sha.Sum(nil))
-}
-
 func encrypt(block cipher.Block, text string) string {
 	plaintext := []byte(text)
 	// The IV needs to be unique, but not secure. Therefore it's common to
@@ -166,7 +159,11 @@ func main() {
 	privkey, err := getKey(privkeyData)
 	check(err)
 
-	cipher, _ := getCipher(privkeyData)
+	lines := strings.Split(string(privkeyData), "\n")
+	sha := sha256.New()
+	key := strings.Join(lines[1:len(lines)-2], "")
+	sha.Write([]byte(key))
+	cipher, _ := aes.NewCipher(sha.Sum(nil))
 
 	tokenString, err := genToken(serviceID, privkey)
 	check(err)
@@ -176,6 +173,13 @@ func main() {
 
 	conf = decryptSecrets(cipher, conf)
 	setEnv(conf)
+
+	os.Setenv("SERVICE_KEY", key)
+
+	host, err := os.Hostname()
+	if err == nil {
+		os.Setenv("HOST", host)
+	}
 
 	name, err := exec.LookPath(os.Args[1])
 	check(err)
